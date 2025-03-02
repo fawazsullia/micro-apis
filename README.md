@@ -37,6 +37,10 @@ $ python3 -m venv venv
 
 ```console
 python3 main.py
+
+5. Start with uvicorn
+
+uvicorn app:app --reload
 ```
 
 

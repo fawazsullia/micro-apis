@@ -1,24 +1,16 @@
-from fastapi import FastAPI, Depends
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from routes import api_router
 
-from auth.jwt_bearer import JWTBearer
-from config.config import initiate_database
-from routes.admin import router as AdminRouter
-from routes.student import router as StudentRouter
+@asynccontextmanager
+async def life_span(app: FastAPI):
+    print("Starting up...")  # Add logs to track execution
+    yield
+    print("Shutting down...")
 
-app = FastAPI()
+app = FastAPI(title="Micro Apis", lifespan=life_span, openapi_url="/open-api", redoc_url="/redoc")
+app.include_router(api_router, prefix="/api/v1")
 
-token_listener = JWTBearer()
-
-
-@app.on_event("startup")
-async def start_database():
-    await initiate_database()
-
-
-@app.get("/", tags=["Root"])
-async def read_root():
-    return {"message": "Welcome to this fantastic app."}
-
-
-app.include_router(AdminRouter, tags=["Administrator"], prefix="/admin")
-app.include_router(StudentRouter,tags=["Students"],prefix="/student",dependencies=[Depends(token_listener)],)
+@app.get("/api/live", tags=["Root"])
+async def live():
+    return {"message": "Service is live"}
