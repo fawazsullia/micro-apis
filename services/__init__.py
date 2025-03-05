@@ -1,1 +1,3 @@
 from .email_validation import EmailValidation
+from .document_extraction import DocumentExtractor
+from .image_comparison import ImageComparison
