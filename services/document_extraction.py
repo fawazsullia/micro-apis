@@ -6,7 +6,7 @@ from openai import OpenAI
 from queries.document_extration_query import document_extraction_query
 import os
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI()
 
 class DocumentExtractor:
 
