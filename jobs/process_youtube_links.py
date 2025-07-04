@@ -20,6 +20,8 @@ async def process_content(content_job: ContentJob):
     content = await ContentModel.get(content_id)
     if content_job.context == JobContext.BLOG:
         await process_blog_content(content_job, content)
+        content_job.status = JobStatus.COMPLETED
+        content_job.completed = True
 
 async def process_blog_content(content_job: ContentJob, content: ContentModel):
     content_id = str(content.id)
@@ -60,8 +62,6 @@ async def process_next_job():
         # Simulate actual processing
         await process_content(content_job=content_job)
 
-        content_job.status = JobStatus.COMPLETED
-        content_job.completed = True
         content_job.updated_at = datetime.utcnow()
         content_job.metadata = {"processed_at": str(datetime.utcnow())}
         await content_job.save()

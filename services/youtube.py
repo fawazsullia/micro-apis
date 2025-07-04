@@ -110,7 +110,7 @@ class YoutubeService:
                     status=JobStatus.PENDING,
                     user_id=str(current_user.id),
                     metadata={"count": request.linked_in.count},
-                    context=JobContext.LINKEDIN
+                    context=JobContext.LINKED_IN_POST
                 )
             )
 
@@ -121,7 +121,7 @@ class YoutubeService:
                     status=JobStatus.PENDING,
                     user_id=str(current_user.id),
                     metadata={"count": request.twitter.count},
-                    context=JobContext.TWITTER
+                    context=JobContext.TWITTER_POST
                 )
             )
         if request.facebook and request.facebook.include:
@@ -131,7 +131,7 @@ class YoutubeService:
                     status=JobStatus.PENDING,
                     user_id=str(current_user.id),
                     metadata={"count": request.facebook.count},
-                    context=JobContext.FACEBOOK
+                    context=JobContext.FACEBOOK_POST
                 )
             )
         if request.reddit and request.reddit.include:
@@ -141,7 +141,7 @@ class YoutubeService:
                     status=JobStatus.PENDING,
                     user_id=str(current_user.id),
                     metadata={"count": request.reddit.count},
-                    context=JobContext.REDDIT
+                    context=JobContext.REDDIT_POST
                 )
             )
 
