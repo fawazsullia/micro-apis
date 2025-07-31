@@ -4,8 +4,10 @@ from datetime import datetime
 from typing import Optional, List, Any
 
 class SocialData(BaseModel):
-    title: str
-    sections: List[Any]
+    content: str
+    hashTags: List[str] = Field(default_factory=list)
+    tone: Optional[str] = None
+    title: Optional[str] = None
 
 class SocialModal(Document):
     contentId: str

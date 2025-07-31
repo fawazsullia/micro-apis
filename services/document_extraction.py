@@ -4,9 +4,9 @@ import easyocr
 from pdf2image import convert_from_path
 from openai import OpenAI
 from queries.document_extration_query import document_extraction_query
-import os
+from config import settings
 
-client = OpenAI()
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 class DocumentExtractor:
 

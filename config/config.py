@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "your-google-client-id")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "your-google-client-secret")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "sds")
+    YT_GOOGLE_API_KEY: str = os.getenv("YT_GOOGLE_API_KEY", "your-youtube-api-key")
 
     class Config:
         env_file = ".env"

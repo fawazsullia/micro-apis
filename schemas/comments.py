@@ -5,18 +5,16 @@ from typing import Optional, List, Any
 from .blog import BlogModel
 from .social import SocialModal
 
-class ContentModel(Document):
-    title: str
-    userId: str
-    blogs: List[BlogModel] = Field(default_factory=list)
-    raw_text: Optional[str] = None
-    video_title: Optional[str] = None
-    video_description: Optional[str] = None
-    link: str
-    tags: Optional[List[str]] = None
+class Comment(BaseModel):
+    text: str
+    name: str
+
+class CommentModel(Document):
+    contentId: str
+    comments: List[Comment] = Field(default_factory=list)
     is_active: bool = True
-    socials: List[SocialModal] = Field(default_factory=list)
+    job_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     class Settings:
-        name = "contents"
+        name = "comments"

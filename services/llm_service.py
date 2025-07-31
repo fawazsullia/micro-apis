@@ -1,12 +1,13 @@
 from openai import OpenAI
 import tiktoken
+from config import settings
 
 class Llm_Service:
 
     def __init__(self, model: str):
         self.model = model
         if model == "gpt-4o":
-            self.client = OpenAI()
+            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         pass
 
     async def extract_data_from_llm(self, text: str, system_prompt = None):

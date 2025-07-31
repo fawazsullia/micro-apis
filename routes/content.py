@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from beanie.operators import In
-from schemas import ContentModel, ContentJob
+from schemas import ContentModel, ContentJob, BlogModel, SocialModal
 from middlewares import get_current_user  # assumes you have an auth system
 from models import PaginatedContentWithJobs, ContentWithJobs, ContentJobOut
 from bson import ObjectId
@@ -75,3 +75,35 @@ async def get_content_with_jobs(
         socials=content.socials,
         jobs=[ContentJobOut(**job.dict(by_alias=True)) for job in jobs]
     )
+
+@router.get("/blogs/{content_id}", response_model=list[BlogModel])
+async def get_blogs(
+    content_id: str,
+    current_user: dict = Depends(get_current_user)
+) -> list[BlogModel]:
+    user_id = str(current_user.id)
+    content = await ContentModel.get(content_id)
+    if not content or content.userId != user_id:
+        return {"error": "Content not found or access denied."}
+
+    blogs = await BlogModel.find(
+        BlogModel.contentId == content_id,
+    ).to_list()
+    return blogs if blogs else []
+
+@router.get("/socials/{content_id}/{type}", response_model=list[SocialModal])
+async def get_content_of_type(
+    content_id: str,
+    type: str,
+    current_user: dict = Depends(get_current_user)
+) -> list[SocialModal]:
+    user_id = str(current_user.id)
+    content = await ContentModel.get(content_id)
+    if not content or content.userId != user_id:
+        return {"error": "Content not found or access denied."}
+
+    socials = await SocialModal.find(
+        SocialModal.contentId == content_id,
+        SocialModal.type == type
+    ).to_list()
+    return socials if socials else []

@@ -19,6 +19,14 @@ async def extract_content_from_transcript(body: Extract_Content_From_Transcript)
     return content
 
 
+@router.post("/extract-twitter-posts")
+async def extract_twitter_posts(body: Extract_Content_From_Transcript):
+    count = 4
+    youtube_service = YoutubeService()
+    twitter_posts = await youtube_service.extract_twitter_posts(body.content, count)
+    return twitter_posts
+
+
 @router.post("/extraction-request")
 async def extraction_request(body: YTExtractionRequest, current_user=Depends(get_current_user)):
     youtube_service = YoutubeService()

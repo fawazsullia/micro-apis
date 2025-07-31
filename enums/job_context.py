@@ -6,6 +6,8 @@ class JobContext(str, Enum):
     TWITTER_POST = "twitter_post"
     REDDIT_POST = "reddit_post"
     FACEBOOK_POST = "facebook_post"
+    COMMENT_SENTIMENT_ANALYSIS = "comment_sentiment_analysis"
+    COMMENT_IDEA_GENERATION = "comment_idea_generation"
 
     def __str__(self):
         return self.value

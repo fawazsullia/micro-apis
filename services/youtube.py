@@ -3,7 +3,7 @@ import re
 from urllib.parse import urlparse, parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from .llm_service import Llm_Service
-from prompts import get_blog_outline_prompt, get_blog_post_prompt, get_summary_prompt
+from prompts import get_blog_outline_prompt, get_blog_post_prompt, get_summary_prompt, get_twitter_post_prompt, get_reddit_post_prompt
 from utils import json_to_clean_markdown
 import json
 from models import YTExtractionRequest
@@ -11,10 +11,14 @@ from schemas import ContentJob, ContentModel, UserModel
 from datetime import datetime
 from enums import JobStatus, JobContext
 import logging
+import requests
+import time
 from .yt_transcript_fetch import YouTubeTranscriptExtractor
+from config import settings
+from dataclass import SocialPostResponse, SocialPost
 logging.basicConfig(level=logging.INFO)
 
-client = OpenAI()
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 class YoutubeService:
     def __init__(self):
         pass
@@ -57,6 +61,55 @@ class YoutubeService:
         blog_post_json_string = await llm_service.extract_data_from_llm(get_blog_post_prompt(blog_outline))
         blog_post = json.loads(blog_post_json_string)
         return blog_post
+    
+    async def extract_twitter_posts(self, content: str, count: int = 1) -> SocialPostResponse:
+        """
+        Extracts Twitter posts from the content using LLM.
+        """
+        llm_service = Llm_Service("gpt-4o")
+        token_count = await llm_service.calculate_total_tokens(content)
+        content_chunks = []
+        if token_count > 10000:
+            content_chunks = llm_service.split_text_into_token_chunks(content, model="gpt-4o", max_tokens=10000, overlap=1000)
+            content = " ".join(content_chunks)
+        else:
+            content_chunks = [content]
+
+        summaries = await self.get_summary_from_content_chunks(content_chunks, llm_service)
+
+        content = " ".join(summaries)
+        content = content.replace('\n', ' ')
+        content = re.sub(r'\s+', ' ', content).strip()
+        
+        
+        twitter_posts = await llm_service.extract_data_from_llm(get_twitter_post_prompt(content, count))
+        twitter_posts = json.loads(twitter_posts)
+        posts = [SocialPost(**post) for post in twitter_posts.get("posts", [])]
+        return SocialPostResponse(posts=posts, count=twitter_posts.get("count", len(posts)))
+    
+    async def extract_reddit_posts(self, content: str, count: int = 1):
+        """
+        Extracts Reddit posts from the content using LLM.
+        """
+        llm_service = Llm_Service("gpt-4o")
+        token_count = await llm_service.calculate_total_tokens(content)
+        content_chunks = []
+        if token_count > 10000:
+            content_chunks = llm_service.split_text_into_token_chunks(content, model="gpt-4o", max_tokens=10000, overlap=1000)
+            content = " ".join(content_chunks)
+        else:
+            content_chunks = [content]
+
+        summaries = await self.get_summary_from_content_chunks(content_chunks, llm_service)
+
+        content = " ".join(summaries)
+        content = content.replace('\n', ' ')
+        content = re.sub(r'\s+', ' ', content).strip()
+        
+        reddit_posts = await llm_service.extract_data_from_llm(get_reddit_post_prompt(content, count))
+        reddit_posts = json.loads(reddit_posts)
+        posts = [SocialPost(**post) for post in reddit_posts.get("posts", [])]
+        return SocialPostResponse(posts=posts, count=reddit_posts.get("count", len(posts)))
     
     async def get_summary_from_content_chunks(self, content_chunks: list, llm_service: Llm_Service = None):
         if llm_service is None:
@@ -144,6 +197,26 @@ class YoutubeService:
                     context=JobContext.REDDIT_POST
                 )
             )
+        if(request.comment_sentiment_analysis):
+            content_jobs.append(
+                ContentJob (
+                    content_id=str(content.id),
+                    status=JobStatus.PENDING,
+                    user_id=str(current_user.id),
+                    metadata={"count": 1},
+                    context=JobContext.COMMENT_SENTIMENT_ANALYSIS
+                )
+            )
+        if(request.comment_idea_generation):
+            content_jobs.append(
+                ContentJob (
+                    content_id=str(content.id),
+                    status=JobStatus.PENDING,
+                    user_id=str(current_user.id),
+                    metadata={"count": 1},
+                    context=JobContext.COMMENT_IDEA_GENERATION
+                )
+            )
 
         if not content_jobs:
             logging.info("No content jobs to create, returning early.")
@@ -155,3 +228,37 @@ class YoutubeService:
 
         return { "message": "Content created and extraction scheduled." }
     
+    def get_all_comments(video_id, delay=0.1):
+        base_url = "https://www.googleapis.com/youtube/v3/commentThreads"
+        comments = []
+        params = {
+            "part": "snippet,replies",
+            "videoId": video_id,
+            "key": settings.YT_GOOGLE_API_KEY,
+            "maxResults": 100,
+            "textFormat": "plainText"
+        }
+
+        while True:
+            response = requests.get(base_url, params=params).json()
+            for item in response.get("items", []):
+                top_comment = item["snippet"]["topLevelComment"]["snippet"]
+                comments.append({
+                    "text": top_comment["textDisplay"],
+                    "name": top_comment["authorDisplayName"]
+                })
+
+                replies = item.get("replies", {}).get("comments", [])
+                for reply in replies:
+                    reply_snippet = reply["snippet"]
+                    comments.append({
+                        "text": reply_snippet["textDisplay"],
+                        "name": reply_snippet["authorDisplayName"]
+                    })
+
+            if "nextPageToken" in response:
+                params["pageToken"] = response["nextPageToken"]
+                time.sleep(delay)
+            else:
+                break
+        return comments
