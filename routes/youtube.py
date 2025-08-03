@@ -32,3 +32,11 @@ async def extraction_request(body: YTExtractionRequest, current_user=Depends(get
     youtube_service = YoutubeService()
     content = await youtube_service.handle_yt_extraction_request(body, current_user)
     return content
+
+@router.post("/extract-comments")
+async def extract_comments(
+    body: YTExtractionRequest
+):
+    youtube_service = YoutubeService()
+    comments = await youtube_service.get_all_comments("pwAmNPaupVE")
+    return comments

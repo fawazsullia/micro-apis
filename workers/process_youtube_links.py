@@ -1,16 +1,15 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 import time
-from schemas import ContentJob, ContentModel, BlogModel, SocialModal, SocialData, CommentModel, Comment
+from services import YoutubeService
+from schemas import ContentJob, ContentModel, BlogModel, SocialModal, SocialData, CommentModel, Comment, init_db
 import asyncio
 from enums import JobStatus, JobContext
 import logging
 from datetime import datetime
-from services import YoutubeService
-
+import traceback
 
 logging.basicConfig(level=logging.INFO)
-
-scheduler = AsyncIOScheduler()
 
 async def process_content(content_job: ContentJob):
     content_id = content_job.content_id
@@ -43,33 +42,74 @@ async def process_comment_sentiment_analysis(content_job: ContentJob, content: C
     content_id = str(content.id)
     comments = await CommentModel.find_one(CommentModel.contentId == content_id, CommentModel.is_active == True)
     youtube_service = YoutubeService()
+    video_id = youtube_service.extract_video_id(content.link)
     if not comments:
-        comments = await youtube_service.extract_comments(content.raw_text)
+        fetched_comments = await youtube_service.get_all_comments(video_id)
+        print(f"Fetched {comments} comments for content ID {content_id}.")
         comments = CommentModel(
             contentId=content_id,
-            comments=[Comment(text=comment.text, name=comment.name) for comment in comments],
+            comments=[Comment(text=comment["text"], name=comment["name"]) for comment in fetched_comments],
             is_active=True,
             job_id=str(content_job.id),
         )
         await comments.insert()
+    if not comments or not comments.comments:
+        logging.error(f"No comments found for content ID {content_id}.")
+        return
+    all_distributions = []
+    all_summaries = []
+    top_positives = []
+    top_negatives = []
+    comment_vals = comments.comments
+    for chunk in youtube_service.chunk_comments(comment_vals):
+        sentiment_analysis = await youtube_service.setiment_analysis(chunk)
+        all_distributions.append(sentiment_analysis["distribution"])
+        all_summaries.append(sentiment_analysis["summary"])
+        top_positives.extend(sentiment_analysis["top_positive_comments"])
+        top_negatives.extend(sentiment_analysis["top_negative_comments"])
+    
+    aggregated_sentiment = await youtube_service.sentiment_analysis_aggregate(
+        all_distributions=all_distributions,
+        all_summaries=all_summaries,
+        top_positives=top_positives,
+        top_negatives=top_negatives
+    )
+    if aggregated_sentiment != None:
+        content.sentiment = aggregated_sentiment
+        content.updated_at = datetime.utcnow()
+        await content.save()
     return
 
 async def process_comment_idea_generation(content_job: ContentJob, content: ContentModel):
     content_id = str(content.id)
     comments = await CommentModel.find_one(CommentModel.contentId == content_id, CommentModel.is_active == True)
     youtube_service = YoutubeService()
+    video_id = youtube_service.extract_video_id(content.link)
     if not comments:
-        comments = await youtube_service.extract_comments(content.raw_text)
+        fetched_comments = await youtube_service.get_all_comments(video_id)
         comments = CommentModel(
             contentId=content_id,
-            comments=[Comment(text=comment.text, name=comment.name) for comment in comments],
+            comments=[Comment(text=comment["text"], name=comment["name"]) for comment in fetched_comments],
             is_active=True,
             job_id=str(content_job.id),
         )
         await comments.insert()
-    # Here you would implement the logic to generate ideas based on the comments
-    # For now, we will just log that this step was reached
-    logging.info(f"Generated ideas for content ID {content_id} based on comments.")
+    if not comments or not comments.comments:
+        logging.error(f"No comments found for content ID {content_id}.")
+        return
+    comment_vals = comments.comments
+    generated_ideas = []
+    for chunk in youtube_service.chunk_comments(comment_vals):
+        gen_ideas = await youtube_service.generate_ideas_from_comments(chunk)
+        if gen_ideas and gen_ideas.get("ideas"):
+            for idea in gen_ideas["ideas"]:
+                generated_ideas.append(idea)
+
+    if(len(generated_ideas) != 0):
+        aggregate_ideas = await youtube_service.generate_ideas_from_comments_aggregate(generated_ideas)
+        content.ideas_from_comments = aggregate_ideas["ideas"] or []
+        content.updated_at = datetime.utcnow()
+        await content.save()
     return
 
 async def process_reddit_posts(content_job: ContentJob, content: ContentModel):
@@ -170,6 +210,11 @@ async def process_next_job():
 
         logging.info(f"Job {content_job.id} completed.")
     except Exception as e:
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        tb = traceback.format_exc()
+    
+        logging.error(f"Error processing job {content_job.id if content_job else 'None'}: {error_msg}")
+        logging.error(f"Traceback:\n{tb}")        
         if content_job:
             content_job.status = JobStatus.FAILED
             content_job.error = str(e)
@@ -178,7 +223,31 @@ async def process_next_job():
         logging.error(f"Error processing job: {e}")
 
 
-def start_yt_processing_scheduler():
-    print("Starting scheduler...")
-    scheduler.add_job(process_next_job, 'interval', seconds=60)
+# def start_yt_processing_scheduler():
+#     print("Starting scheduler...")
+#     scheduler.add_job(process_next_job, 'interval', seconds=60)
+#     scheduler.add_job(lambda: asyncio.create_task(process_next_job()), 'interval', seconds=60)
+#     scheduler.start()
+
+
+async def start_worker():
+    scheduler = AsyncIOScheduler()
+    await init_db()  # Ensure the database is initialized before starting the worker
+    # Run your async job every 60 seconds
+    scheduler.add_job(
+        process_next_job,
+        trigger=IntervalTrigger(seconds=60),
+        name="Process YouTube Jobs",
+        max_instances=1,
+        misfire_grace_time=30
+    )
+
     scheduler.start()
+    print("📅 Worker started. Running every 60 seconds.")
+
+    # Keep the event loop running
+    while True:
+        await asyncio.sleep(3600)
+
+if __name__ == "__main__":
+    asyncio.run(start_worker())

@@ -3,11 +3,11 @@ import re
 from urllib.parse import urlparse, parse_qs
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from .llm_service import Llm_Service
-from prompts import get_blog_outline_prompt, get_blog_post_prompt, get_summary_prompt, get_twitter_post_prompt, get_reddit_post_prompt
+from prompts import get_blog_outline_prompt, get_blog_post_prompt, get_summary_prompt, get_twitter_post_prompt, get_reddit_post_prompt, get_video_ideas_prompt, build_sentiment_insight_prompt, build_aggregate_prompt, get_video_ideas_aggregate_prompt
 from utils import json_to_clean_markdown
 import json
 from models import YTExtractionRequest
-from schemas import ContentJob, ContentModel, UserModel
+from schemas import ContentJob, ContentModel, UserModel, Comment
 from datetime import datetime
 from enums import JobStatus, JobContext
 import logging
@@ -16,6 +16,7 @@ import time
 from .yt_transcript_fetch import YouTubeTranscriptExtractor
 from config import settings
 from dataclass import SocialPostResponse, SocialPost
+from typing import List, Dict
 logging.basicConfig(level=logging.INFO)
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -217,6 +218,25 @@ class YoutubeService:
                     context=JobContext.COMMENT_IDEA_GENERATION
                 )
             )
+        if(request.comment_analysis):
+            content_jobs.append(
+                ContentJob (
+                    content_id=str(content.id),
+                    status=JobStatus.PENDING,
+                    user_id=str(current_user.id),
+                    metadata={"count": 1},
+                    context=JobContext.COMMENT_SENTIMENT_ANALYSIS
+                )
+            )
+            content_jobs.append(
+                ContentJob (
+                    content_id=str(content.id),
+                    status=JobStatus.PENDING,
+                    user_id=str(current_user.id),
+                    metadata={"count": 1},
+                    context=JobContext.COMMENT_IDEA_GENERATION
+                )
+            )
 
         if not content_jobs:
             logging.info("No content jobs to create, returning early.")
@@ -228,7 +248,7 @@ class YoutubeService:
 
         return { "message": "Content created and extraction scheduled." }
     
-    def get_all_comments(video_id, delay=0.1):
+    async def get_all_comments(self, video_id, delay=0.1):
         base_url = "https://www.googleapis.com/youtube/v3/commentThreads"
         comments = []
         params = {
@@ -262,3 +282,45 @@ class YoutubeService:
             else:
                 break
         return comments
+    
+    def chunk_comments(self, comments: List[Comment], chunk_size=100):
+        for i in range(0, len(comments), chunk_size):
+            yield comments[i:i + chunk_size]
+
+    async def generate_ideas_from_comments(self, comments: List[Comment]):
+        llm_service = Llm_Service("gpt-4o")
+        generated_comms = await llm_service.extract_data_from_llm(get_video_ideas_prompt(comments))
+        print(generated_comms, "Generated Comments")
+        generated_comms = json.loads(generated_comms)
+        return generated_comms or { "ideas": [], "count": 0 }
+    
+    async def generate_ideas_from_comments_aggregate(self, ideas: List[str]):
+        llm_service = Llm_Service("gpt-4o")
+        generated_ideas = await llm_service.extract_data_from_llm(get_video_ideas_aggregate_prompt(ideas))
+        generated_ideas = json.loads(generated_ideas)
+        return generated_ideas or { "ideas": [], "count": 0 }
+    
+    async def setiment_analysis(self, comments: List[Comment]):
+        prompt = build_sentiment_insight_prompt(comments)
+        llm_service = Llm_Service("gpt-4o")
+        response = await llm_service.extract_data_from_llm(prompt)
+        response = json.loads(response)
+        return response or {}
+    
+    async def sentiment_analysis_aggregate(
+        self,                               
+        all_distributions: List[Dict[str, float]],
+        all_summaries: List[str],
+        top_positives: List[Dict[str, str]],
+        top_negatives: List[Dict[str, str]]
+    ):
+        final_agg_prompt = build_aggregate_prompt(
+            distributions=all_distributions,
+            summaries=all_summaries,
+            positives=top_positives,
+            negatives=top_negatives,
+        )
+        llm_service = Llm_Service("gpt-4o")
+        response = await llm_service.extract_data_from_llm(final_agg_prompt)
+        response = json.loads(response)
+        return response or {}

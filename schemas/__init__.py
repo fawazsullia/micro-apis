@@ -4,6 +4,6 @@ from .blog import BlogModel
 from .content import ContentModel
 from .social import SocialModal, SocialData
 from .content_job import ContentJob
-from .comments import CommentModel
+from .comments import CommentModel, Comment
 
 __all__ = [UserModel, BlogModel, ContentModel, SocialModal, ContentJob, CommentModel]

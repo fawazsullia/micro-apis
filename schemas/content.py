@@ -16,6 +16,8 @@ class ContentModel(Document):
     tags: Optional[List[str]] = None
     is_active: bool = True
     socials: List[SocialModal] = Field(default_factory=list)
+    ideas_from_comments: Optional[List[str]] = None
+    sentiment: Optional[Any] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     class Settings:

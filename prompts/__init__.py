@@ -3,3 +3,7 @@ from .blog_post import get_blog_post_prompt
 from .summary import get_summary_prompt
 from .twitter_post import get_twitter_post_prompt
 from .reddit_post_prompt import get_reddit_post_prompt
+from .video_ideas_from_comments import get_video_ideas_prompt
+from .sentiment_analysis_insight import build_sentiment_insight_prompt
+from .sentiment_analysis_aggregate import build_aggregate_prompt
+from .video_ideas_from_comments_aggregate import get_video_ideas_aggregate_prompt
