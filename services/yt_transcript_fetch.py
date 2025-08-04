@@ -23,14 +23,6 @@ except ImportError:
     YTDLP_AVAILABLE = False
     print("yt-dlp not available. Install with: pip install yt-dlp")
 
-# Whisper imports
-try:
-    import whisper
-    WHISPER_AVAILABLE = True
-except ImportError:
-    WHISPER_AVAILABLE = False
-    print("whisper not available. Install with: pip install openai-whisper")
-
 # Speech recognition imports
 try:
     from pytube import YouTube
@@ -288,52 +280,6 @@ class YouTubeTranscriptExtractor:
             transcript.append(current_line.strip())
 
         return " ".join(transcript)
-
-    def transcribe_with_whisper(self, video_url: str, model_size: str = 'base') -> Tuple[Optional[str], Optional[List]]:
-        """
-        Download audio from YouTube and transcribe using Whisper.
-        
-        Args:
-            video_url: YouTube video URL
-            model_size: Whisper model size ('tiny', 'base', 'small', 'medium', 'large')
-            
-        Returns:
-            Tuple of (transcript_text, segments)
-        """
-        if not WHISPER_AVAILABLE or not YTDLP_AVAILABLE:
-            print("Whisper or yt-dlp not available")
-            return None, None
-            
-        # Configure yt-dlp to download audio only
-        temp_audio_file = f'temp_audio_{int(time.time())}.wav'
-        self.temp_files.append(temp_audio_file)
-        
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'wav',
-            }],
-            'outtmpl': temp_audio_file.replace('.wav', '.%(ext)s'),
-            'quiet': True,
-        }
-        
-        try:
-            # Download audio
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
-            
-            # Load Whisper model
-            model = whisper.load_model(model_size)
-            
-            # Transcribe
-            result = model.transcribe(temp_audio_file)
-            
-            return result['text'], result['segments']
-            
-        except Exception as e:
-            print(f"Error in Whisper transcription: {e}")
-            return None, None
     
     def transcribe_with_speech_recognition(self, video_url: str) -> Optional[str]:
         """
@@ -437,15 +383,6 @@ class YouTubeTranscriptExtractor:
         if ytdlp_text:
             print(f"✓ Found {ytdlp_type} transcript with yt-dlp!")
             return ytdlp_text, f"ytdlp_{ytdlp_type}"
-        
-        # Method 3: Whisper transcription (if enabled)
-        if use_whisper:
-            print("Trying Method 3: Whisper transcription...")
-            whisper_text, segments = self.transcribe_with_whisper(video_url, whisper_model)
-            
-            if whisper_text:
-                print("✓ Whisper transcription successful!")
-                return whisper_text, "whisper"
         
         # Method 4: Speech recognition (last resort)
         print("Trying Method 4: Speech recognition...")

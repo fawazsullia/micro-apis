@@ -1,20 +1,17 @@
-version: "3"
+version: "3.9"
 
 services:
-  web:
+  api:
     build: .
+    container_name: api
     ports:
-      - "8080:8080"
-    env_file:
-      - .env.docker-compose
+      - "8000:8000"
+    envfile: .env
 
-  mongodb:
-    image: bitnami/mongodb:latest
-    ports:
-      - "27017"
-    volumes:
-      - data:/bitnami/mongodb
-
+  worker:
+    build: .
+    container_name: youtube_worker
+    command: ["python", "-m", "workers.process_youtube_links"]
+    envfile: .env
 
 volumes:
-  data:
