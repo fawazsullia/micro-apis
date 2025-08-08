@@ -17,6 +17,7 @@ from .yt_transcript_fetch import YouTubeTranscriptExtractor
 from config import settings
 from dataclass import SocialPostResponse, SocialPost
 from typing import List, Dict
+from fastapi import HTTPException
 logging.basicConfig(level=logging.INFO)
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -135,6 +136,8 @@ class YoutubeService:
             return { "message": "Content already exists." }
         
         extract_transcript = await self.extract_transcript(request.link)
+        if(len(extract_transcript) == 0):
+            raise HTTPException(status_code=400, detail="No transcript found for the given link.")
         content = ContentModel(
             userId=str(current_user.id),
             link=request.link,

@@ -5,6 +5,8 @@ import os
 import io
 from typing import Optional, Tuple, List, Union
 import json
+import tempfile
+from config import settings
 
 # YouTube Transcript API imports
 try:
@@ -214,8 +216,13 @@ class YouTubeTranscriptExtractor:
             
         if lang is None:
             lang = self.default_language
+
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp_cookie_file:
+            tmp_cookie_file.write(settings.YT_COOKIES)
+            tmp_cookie_file_path = tmp_cookie_file.name
             
         ydl_opts = {
+            'cookies': tmp_cookie_file_path,
             'writesubtitles': True,
             'writeautomaticsub': True,
             'subtitleslangs': [lang, 'en'],
@@ -350,7 +357,7 @@ class YouTubeTranscriptExtractor:
             return False
     
     def get_transcript(self, video_url: str, languages: List[str] = None, 
-                      use_whisper: bool = True, whisper_model: str = 'base') -> Tuple[Optional[str], Optional[str]]:
+                    use_whisper: bool = False, whisper_model: str = 'base') -> Tuple[Optional[str], Optional[str]]:
         """
         Get transcript using all available methods with fallback strategy.
         
